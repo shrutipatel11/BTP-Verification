@@ -1,0 +1,15 @@
+TASK src TYPE 45
+TASK sort TYPE 5
+TASK dotproduct TYPE 9
+TASK reverse TYPE 6
+TASK addarrays TYPE 0
+TASK average TYPE 14
+TASK sink TYPE 45
+
+ARC a2_0 FROM src TO sort TYPE 0
+ARC a2_1 FROM sort TO addarrays TYPE 0
+ARC a2_2 FROM src TO dotproduct TYPE 2
+ARC a2_3 FROM dotproduct TO reverse TYPE 2
+ARC a2_4 FROM reverse TO addarrays TYPE 2
+ARC a2_5 FROM addarrays TO average TYPE 0
+ARC a2_6 FROM average TO sink TYPE 3
