@@ -60,13 +60,8 @@ if f.mode=="r":
             t2 = x[start_index+4:start_index2]      #second task of the edge
 
             edges.append([t1,t2])    #add the edge to the edge list
-
-#Schedule the processes and start execution with the node 'src'
-# processes = ['src.py', 'dotproduct.py 1,2,3,4,5,6']
-# k=2
-# pool = Pool(processes=k)
-# z = pool.map(run_process, processes)
-# print type(z)
+            
+            
 
 processes = ['src']
 dict = {'src':0}
