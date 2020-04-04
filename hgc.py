@@ -1,35 +1,36 @@
 import os
 import ast
 import time
-from multiprocessing import Pool
-from multiprocessing import Process
+from multiprocessing import Pool, Process
 from subprocess import Popen, PIPE
 import socket
+import multiprocessing
 
-tpc_results = {}
-tpc_executed = {}
-processes = ['src']
-hgc_executed = {}     #0 if the task is not executed, 1 if it is executed
+manager = multiprocessing.Manager()
+tpc_results = manager.dict()
+processes = manager.list()
+processes.append('src')
 hgc_results = {}     #stores the output of a task in the form of a string
 
 tasks = []
 edges = []
 
 #recive the task outputs of 3pc via sockets
-def get_result_from_3pc():
+def get_result_from_3pc(tpc_results,processes):
     s = socket.socket()
-    port = 12345
+    port = 12346
     s.connect(('127.0.0.1', port))
     while 1:
         str_rcvd = s.recv(1024)
         arr = map(str,str_rcvd.split(' '))
-        print "-------hgc received-----------"
-        tpc_results[arr[0]]=arr[1]
-        tpc_executed[arr[0]]=1
-        c = find_children(edges,arr[0])
-        for j in c:
-            hgc_executed[j]=0
-            processes.append(j)
+        # print "-------hgc received-----------"
+        name = str(arr[0])
+        toutput = str(arr[1])
+        tpc_results[name]=toutput               #Stores the result received fron 3PC to tpc_results dictionary
+        c = find_children(edges,name)           #Appends the children tasks of the received task
+        for jj in c:
+            if jj not in processes:
+                processes.append(jj)
         if arr[0]=='sink':
             break
 
@@ -57,10 +58,11 @@ def run_process(process):
     return output
 
 
-def process_task_graph():
+def process_task_graph(tpc_results,processes):
+    flag = 0
     while True:
-        print processes
-        print tpc_results
+        print "processes",processes
+        # print tpc_results
 
         #remove the processes whose ancestors have not yet completed the execution in 3pc and hgc both
         if len(processes)!=1 and processes[0]!='src':
@@ -68,14 +70,13 @@ def process_task_graph():
             for i in processes:
                 p = find_parents(edges,i)
                 for j in p:
-                    if hgc_executed[j]!=1 and (j not in tpc_results):       #ISSUE 1 : tpc_results is always empty empty so it removes the processses
-                        rmproc.append(i)                                    #for which we have the inpur fron 3PC. tpc_results is updated in the
-                        break                                               #function get_result_from_3pc
+                    if (j not in hgc_results) and (j not in tpc_results):
+                        rmproc.append(i)
+                        break
             for i in rmproc:
                 processes.remove(i)
                 print "removed",i
 
-        # print "processes",processes
 
         #for the remaining processes,find the inputs (arguments) from the outputs stored in hgc_results or tpc_results dict
         cmdarg = []
@@ -89,7 +90,7 @@ def process_task_graph():
                     tempstr+=hgc_results[k]
                     tempstr+=' '
                 else:
-                    print "Output taken from 3PC"                           #ISSUE 2 : Control never goes to the else block due to ISSUE 1
+                    print "Output taken from 3PC"
                     tempstr+=tpc_results[k]
                     tempstr+=' '
             cmdarg.append(tempstr)
@@ -98,16 +99,10 @@ def process_task_graph():
         k = len(processes)
         pool = Pool(processes=k)
         z = pool.map(run_process, cmdarg)
+        # print "z",z,processes
 
-
-        #if the last task is reached, end the loop
-        if 'sink' in processes:
-            print z[0][0]
-            break
-
-        #set value 1 for completed processes
-        for i in range(len(processes)):
-            hgc_executed[processes[i]]=1
+        #Store the results of the completed processes
+        for i in range(k):
             #store the output of the task as a string
             outstr = ''
             for j in range(len(z[i])):
@@ -115,22 +110,54 @@ def process_task_graph():
                 if j!=len(z[i])-1:
                     outstr+=','
             hgc_results[processes[i]]=outstr
+            # print "Result added",processes[i],outstr
+
+        #if the last task is reached, end the loop
+        if 'sink' in processes:
+            if len(tpc_results)!=0:
+                misc = []
+                for key in hgc_results:                                                          #Check if the 3PC and HGC results matches
+                    if (key in tpc_results) and tpc_results[key] != hgc_results[key]:            #Add those tasks whose results does not match in misc array
+                        # print "Added process",key
+                        misc.append(key)
+                        flag=1                                          #Set the flag to 1 to show that miscomputation has happened by 3PC
+            if flag==1:                                                 #If miscomputation has occured
+                tpc_results.clear()                                     #Clear all the results recevied fron #PC
+                processes = []
+                processes.extend(misc)                                  #Remove the outputs of miscomputed tasks and their children tasks fron hgc_results
+                while 1:
+                    if len(misc)==0:
+                        break
+                    if misc[0] in hgc_results:
+                        del hgc_results[misc[0]]
+                    rmchild = misc[0]
+                    fchild = find_children(edges,rmchild)
+                    misc.remove(misc[0])
+                    misc.extend(fchild)
+                flag=0
+            else:
+                if 'sink' in hgc_results:
+                    print  hgc_results['sink']
+                    break
+                elif 'sink' in tpc_results:
+                    print tpc_results['sink']
+                    break
 
         #add the children processes of the completed processes
         for i in processes:
             c = find_children(edges,i)
             for j in c:
                 if j not in processes:
-                    hgc_executed[j]=0
                     processes.append(j)
 
         #remove the processes that have completed its execution
         rm = []
         for i in processes:
-            if hgc_executed[i]==1:
+            if i in hgc_results:
                 rm.append(i)
         for i in rm:
             processes.remove(i)
+        # print "processes and removed",processes,rm
 
         time.sleep(1)
 
@@ -172,9 +199,9 @@ if f.mode=="r":
 
 
 
-p1 = Process(target = get_result_from_3pc)
+p1 = Process(target = get_result_from_3pc, args=[tpc_results,processes])
+p2 = Process(target = process_task_graph, args=[tpc_results,processes])
 p1.start()
-p2 = Process(target = process_task_graph)
 p2.start()
 p1.join()
 p2.join()
