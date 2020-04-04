@@ -7,7 +7,7 @@ import socket
 tasks = []
 edges = []
 s = socket.socket()
-port  = 12345
+port  = 12346
 s.bind(('127.0.0.1',port))
 print "socket binded to %s" %(port)
 s.listen(5)
@@ -29,6 +29,7 @@ def find_parents(edge_list, child):
             parents.append(element[0])
     return parents
 
+#Run the processes on different cores
 def run_process(process):
     # x = os.system('python {}.py'.format(process))
     stdout = Popen('python {}'.format(process), shell=True, stdout=PIPE).stdout
@@ -135,7 +136,9 @@ while True:
         output[processes[i]]=outstr
 
         sendString = processes[i]+' '+outstr
-        cli.send(sendString)
+        if processes[i]=='addarrays':
+            sendString = 'addarrays 686,9811,14,1112,4515,96,562,167,271,1122,5724,200'
+        cli.send(sendString)                        #Sends "task_name output" of all executed processes to the HGC
 
     #add the children processes of the completed processes
     for i in processes:
