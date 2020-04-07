@@ -18,7 +18,7 @@ edges = []
 #recive the task outputs of 3pc via sockets
 def get_result_from_3pc(tpc_results,processes):
     s = socket.socket()
-    port = 12346
+    port = 12345
     s.connect(('127.0.0.1', port))
     while 1:
         str_rcvd = s.recv(1024)
@@ -112,36 +112,37 @@ def process_task_graph(tpc_results,processes):
             hgc_results[processes[i]]=outstr
             # print "Result added",processes[i],outstr
 
+        #Check if any miscomputation has happened
+        if len(tpc_results)!=0:
+            misc = []
+            for key in hgc_results:                                                          #Check if the 3PC and HGC results matches
+                if (key in tpc_results) and tpc_results[key] != hgc_results[key]:            #Add those tasks whose results does not match in misc array
+                    # print "Added process",key
+                    misc.append(key)
+                    flag=1
+        if flag==1:                                                 #If miscomputation has occured
+            tpc_results.clear()                                     #Clear all the results recevied fron #PC
+            processes = []
+            processes.extend(misc)                                  #Remove the outputs of miscomputed tasks and their children tasks fron hgc_results
+            while 1:
+                if len(misc)==0:
+                    break
+                if misc[0] in hgc_results:
+                    del hgc_results[misc[0]]
+                rmchild = misc[0]
+                fchild = find_children(edges,rmchild)
+                misc.remove(misc[0])
+                misc.extend(fchild)
+            flag=0
+
         #if the last task is reached, end the loop
         if 'sink' in processes:
-            if len(tpc_results)!=0:
-                misc = []
-                for key in hgc_results:                                                          #Check if the 3PC and HGC results matches
-                    if (key in tpc_results) and tpc_results[key] != hgc_results[key]:            #Add those tasks whose results does not match in misc array
-                        # print "Added process",key
-                        misc.append(key)
-                        flag=1                                          #Set the flag to 1 to show that miscomputation has happened by 3PC
-            if flag==1:                                                 #If miscomputation has occured
-                tpc_results.clear()                                     #Clear all the results recevied fron #PC
-                processes = []
-                processes.extend(misc)                                  #Remove the outputs of miscomputed tasks and their children tasks fron hgc_results
-                while 1:
-                    if len(misc)==0:
-                        break
-                    if misc[0] in hgc_results:
-                        del hgc_results[misc[0]]
-                    rmchild = misc[0]
-                    fchild = find_children(edges,rmchild)
-                    misc.remove(misc[0])
-                    misc.extend(fchild)
-                flag=0
-            else:
-                if 'sink' in hgc_results:
-                    print  hgc_results['sink']
-                    break
-                elif 'sink' in tpc_results:
-                    print tpc_results['sink']
-                    break
+            if 'sink' in hgc_results:
+                print  hgc_results['sink']
+                break
+            elif 'sink' in tpc_results:
+                print tpc_results['sink']
+                break
 
         #add the children processes of the completed processes
         for i in processes:
@@ -159,7 +160,7 @@ def process_task_graph(tpc_results,processes):
             processes.remove(i)
         # print "processes and removed",processes,rm
 
-        time.sleep(1)
+        # time.sleep(1)
 
 
 #--------------------------------------Main function------------------------------------------#
