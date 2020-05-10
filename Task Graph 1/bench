@@ -1,0 +1,19 @@
+TASK src TYPE 45
+TASK fft TYPE 5
+TASK fir TYPE 5
+TASK angle TYPE 5
+TASK matrix TYPE 5
+TASK ifft TYPE 5
+TASK road TYPE 5
+TASK table TYPE 5
+TASK sink TYPE 45
+
+ARC a2_0 FROM src TO fft TYPE 0
+ARC a2_1 FROM src TO fir TYPE 0
+ARC a2_2 FROM fft TO matrix TYPE 0
+ARC a2_0 FROM fir TO angle TYPE 0
+ARC a2_0 FROM matrix TO ifft TYPE 0
+ARC a2_0 FROM ifft TO angle TYPE 0
+ARC a2_0 FROM angle TO road TYPE 0
+ARC a2_0 FROM road TO table TYPE 0
+ARC a2_0 FROM table TO sink TYPE 0
